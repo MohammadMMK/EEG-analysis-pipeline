@@ -39,9 +39,9 @@ class preprocess:
         epochs = mne.Epochs(self.raw, events, event_id={'EasyWord':1, 'HardWord':2}, tmin=tmin, tmax=tmax, baseline=baseline, metadata=df,  preload=True)
         return epochs
 
-    def bridged_channels(self, lm_cutoff = 5, epoch_threshold=0.8):
+    def bridged_channels(self,instant,  lm_cutoff = 5, epoch_threshold=0.5):
     
-        bridged_idx, ed_matrix  = compute_bridged_electrodes(self.raw, lm_cutoff = lm_cutoff, epoch_threshold= epoch_threshold)
+        bridged_idx, ed_matrix  = compute_bridged_electrodes( instant, lm_cutoff = lm_cutoff, epoch_threshold= epoch_threshold)
 
         bridged_channels = list(set([channel for pair in bridged_idx for channel in pair]))
         bridged_ch_names = [self.raw.ch_names[i] for i  in bridged_channels]
