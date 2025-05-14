@@ -1,2 +1,4 @@
 mne
 numpy
+scipy
+pandas
