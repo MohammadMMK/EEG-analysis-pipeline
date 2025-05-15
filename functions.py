@@ -12,6 +12,8 @@ class preprocess:
         self.eeg_path = os.path.join(data_path, [f for f in os.listdir(data_path) if self.id in f and f.endswith('.bdf')][0])
         self.txt_path = os.path.join(data_path, [f for f in os.listdir(data_path) if self.id in f and f.endswith('.txt')][0])
         self.raw = self.load_data()
+        self.df = pd.read_csv(self.txt_path, delimiter='\t', header=None)
+        self.df.columns = ['outcome', 'RT', 'unicityDistance', 'earlyVSlate']
 
     def load_data(self):
         """Load EEG data from a file."""
@@ -31,15 +33,15 @@ class preprocess:
         raw.set_montage(rotated_montage)
         return raw
     
-    def epoching(self, stim = "unicity", tmin=-0.2, tmax=0.8, baseline=(None, 0) ):
+    def epoching(self,raw, stim = "unicity", tmin=-0.2, tmax=0.8, baseline=(None, 0) ):
 
         df = pd.read_csv(self.txt_path, delimiter='\t', header=None)
         df.columns = ['outcome', 'RT', 'unicityDistance', 'earlyVSlate']
-        events = mne.find_events(self.raw)
-        epochs = mne.Epochs(self.raw, events, event_id={'EasyWord':1, 'HardWord':2}, tmin=tmin, tmax=tmax, baseline=baseline, metadata=df,  preload=True)
+        events = mne.find_events(raw)
+        epochs = mne.Epochs(raw, events, event_id={'EasyWord':1, 'HardWord':2}, tmin=tmin, tmax=tmax, baseline=baseline, metadata=df,  preload=True)
         return epochs
 
-    def bridged_channels(self,instant,  lm_cutoff = 5, epoch_threshold=0.5):
+    def bridged_channels(self,instant,   lm_cutoff = 5, epoch_threshold=0.5):
     
         bridged_idx, ed_matrix  = compute_bridged_electrodes( instant, lm_cutoff = lm_cutoff, epoch_threshold= epoch_threshold)
 
@@ -48,6 +50,41 @@ class preprocess:
         self.raw.info['bads'] += bridged_ch_names
 
         return bridged_idx, ed_matrix, bridged_ch_names
+    
+    def Bad_segments(self, raw, diff_stim_threshold=11):
+        import pandas as pd
+        df = self.df
+        events, sfreq = mne.find_events(raw), raw.info['sfreq']
+        # Create response annotations
+        response_annotations = [
+            ((events[i, 0] / sfreq) + (row['RT'] / 1000), 0.0, 'response')
+            for i, row in df.iterrows() if not pd.isna(row['RT'])
+        ]
+
+        # Create break annotations
+        threshold = diff_stim_threshold
+        stims = events[:, 0] / sfreq
+        diff_stim = stims[1:] - stims[:-1]
+        prior_stim = np.where(diff_stim > threshold)[0]
+        next_stim = prior_stim + 1
+        break_annotations = [
+            (stims[prior_stim[i]] + 1, (stims[next_stim[i]] - stims[prior_stim[i]] - 1.5), 'BAD_breaks')
+            for i in range(len(prior_stim))
+        ]
+        print(f'numnber of breaks found with threshold {threshold}: {len(break_annotations)}')
+        # Add beginning and end annotations
+        beginning_end_annotations = [
+            (0.0, stims[0] - 1, 'BAD_beginning'),
+            (stims[-1] + 2, raw.times[-1] - (stims[-1] + 2), 'BAD_end')
+        ]
+        # Combine all annotations
+        all_annotations = response_annotations + break_annotations + beginning_end_annotations
+
+        # Convert to MNE Annotations and set them on raw
+        onsets, durations, descriptions = zip(*all_annotations)
+        raw = raw.set_annotations(mne.Annotations(onset=onsets, duration=durations, description=descriptions))
+
+        return raw
 
         
 
