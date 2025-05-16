@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import pandas as pd
 from mne.preprocessing import compute_bridged_electrodes
-
+from unidecode import unidecode
 class preprocess:
     def __init__(self, id):
         self.id = str(id)
@@ -86,7 +86,82 @@ class preprocess:
 
         return raw
 
+
+    def get_all_events_times(self, subject_id, events, 
+                            path_beh_task=None, path_beh_subject=None):
+
+
+        # load data from exel file 
+        if path_beh_task is None or path_beh_subject is None:
+            path_beh_task = r'C:\Users\gmoha\Downloads\git\preprocessing_pipline\Data\BehavioralResultsDefinition24ss_11_11_2017_RF_2023.xlsx'
+            path_beh_subject = r'C:\Users\gmoha\Downloads\git\preprocessing_pipline\Data\ClasseurCompDef_Lifespan_V8_Avril2019_Outliers.xlsx'
         
+        # Load Excel sheets
+        behavior_tasks = pd.read_excel(path_beh_task, sheet_name='ItemsBalancés')
+        behavior_subjets = pd.read_excel(path_beh_subject, sheet_name='Data')
+
+        # Filter data for current subject
+        subject_key = f'S{subject_id}'
+        subject_data = behavior_subjets[behavior_subjets['Sujet'] == subject_key]
+        subject_data = subject_data.dropna(subset=['Cible'])
+        subject_data = subject_data[subject_data['Ordre'] <= 108]
+
+        # Clean and normalize stimulus duration
+        behavior_tasks = behavior_tasks.dropna(subset=['ortho'])
+        behavior_tasks['ortho'] = behavior_tasks['ortho'].apply(unidecode)
+
+        sfreq = self.raw.info['sfreq']
+        results = {
+            'Trial': [],
+            'defOnset': [],
+            'SecWordOnset': [],
+            'LWOnset': [],
+            'Respons': []
+        }
+
+        for trial in range(1, 109):
+            # Get stimulus word
+            word = subject_data[subject_data['Ordre'] == trial]['Cible'].values[0]
+
+            # Lookup in duration data
+            stim_info = behavior_tasks[behavior_tasks['ortho'] == word]
+            total_duration_ms = stim_info['DureeTot_second'].values[0] * 1000
+            pu_ms = stim_info['PU_second'].values[0] * 1000
+            def2_onset_ms = stim_info['Def2_Audio_Onset'].values[0] * 1000
+            lw_onset_ms = stim_info['LW_Onset'].values[0] * 1000
+
+            # Get response time
+            rt_corrPU_ms = subject_data[subject_data['Ordre'] == trial]['RT_Correct_CorrPU'].values[0]
+
+            # Calculate onsets
+            event_time_ms = (events[trial - 1][0] / sfreq) * 1000
+            onset_def = event_time_ms - pu_ms
+            onset_sec_word = onset_def + def2_onset_ms
+            onset_lw = onset_def + lw_onset_ms
+            response_time = event_time_ms + rt_corrPU_ms
+
+            # Append to results
+            results['Trial'].append(trial)
+            results['defOnset'].append(onset_def / 1000.0)
+            results['SecWordOnset'].append(onset_sec_word / 1000.0)
+            results['LWOnset'].append(onset_lw / 1000.0)
+            results['Respons'].append(response_time / 1000.0)
+
+        return pd.DataFrame(results)
 
 
+class behaviorAnalysis:
+    def __init__(self, id):
+        self.id = str(id)
+    
+    def load_subject_data(self, path_beh_subject):
 
+        behavior_subjets = pd.read_excel(path_beh_subject, sheet_name='Data')
+        # Filter data for current subject
+        subject_key = f'S{self.id}'
+        subject_data = behavior_subjets[behavior_subjets['Sujet'] == subject_key]
+        # remove the rows that Ordre is more than 108
+        subject_data = subject_data[subject_data['Ordre'] <= 108]
+
+        return subject_data
+    
