@@ -93,8 +93,8 @@ class preprocess:
 
         # load data from exel file 
         if path_beh_task is None or path_beh_subject is None:
-            path_beh_task = r'C:\Users\gmoha\Downloads\git\preprocessing_pipline\Data\BehavioralResultsDefinition24ss_11_11_2017_RF_2023.xlsx'
-            path_beh_subject = r'C:\Users\gmoha\Downloads\git\preprocessing_pipline\Data\ClasseurCompDef_Lifespan_V8_Avril2019_Outliers.xlsx'
+            path_beh_task = os.path.join(data_path, 'BehavioralResultsDefinition24ss_11_11_2017_RF_2023.xlsx')
+            path_beh_subject =  os.path.join(data_path, 'ClasseurCompDef_Lifespan_V8_Avril2019_Outliers.xlsx')
         
         # Load Excel sheets
         behavior_tasks = pd.read_excel(path_beh_task, sheet_name='ItemsBalancés')
