@@ -208,53 +208,17 @@ def preICA(id):
     bridged_channels= all_bridged_channels[5][id] 
     sub = preprocess(id)
     raw = sub.load_data()
+    # 1. remove noisy channels
+    raw.info['bads'] = bads_channel
+    # 2. Filter the data
     raw.notch_filter([50,100], fir_design='firwin', skip_by_annotation='edge')
     raw.filter(l_freq=1, h_freq= None)
-    raw.info['bads'] = bads_channel
+    # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
     events = mne.find_events(raw)
     all_events = sub.get_all_events_times(id, events).dropna()
-    all_trials = []
-    for idx, row in all_events.iterrows():
-
-        Tnum = row['Trial']
-        if Tnum in bad_trials:
-            continue
-        start = row['defOnset'] 
-        end = row['Respons'] 
-        duration = end - start
-
-        # Copy and crop raw data
-        data = raw.copy().crop(start, end)
-        
-        # Create annotation
-        onset_in_cropped = 0  # onset relative to start of cropped data
-        annotation = mne.Annotations(onset=[onset_in_cropped],
-                                    duration=[duration],
-                                    description=[f'Trial {Tnum}'])
-        
-        # Set annotation to this segment
-        data.set_annotations(annotation)
-
-        all_trials.append(data)
-    new_raw = mne.concatenate_raws(all_trials)
-
-
+    new_raw = sub.segment_stimRt(raw, all_events, bad_trials)
     # interpolate bridged channels
     new_raw = mne.preprocessing.interpolate_bridged_electrodes(new_raw, bridged_channels['bridged_idx'], bad_limit=3) 
-
-    # # interpolate bad channels
-    # new_raw.interpolate_bads()
-
-    # # average reference
-    # new_raw.set_eeg_reference(ref_channels='average')
-
-    # # zscore the data
-    # data = new_raw.get_data()
-    # chan_means = np.mean(data, axis=1, keepdims=True)
-    # chan_stds  = np.std(data,  axis=1, keepdims=True)
-    # zscored_data = (data - chan_means) / chan_stds
-    # new_raw._data = zscored_data
-
     return new_raw
 
 
