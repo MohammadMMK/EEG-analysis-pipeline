@@ -34,11 +34,9 @@ class preprocess:
         return raw
     
     def epoching(self,raw, stim = "unicity", tmin=-0.2, tmax=0.8, baseline=(None, 0) ):
-
-        df = pd.read_csv(self.txt_path, delimiter='\t', header=None)
-        df.columns = ['outcome', 'RT', 'unicityDistance', 'earlyVSlate']
         events = mne.find_events(raw)
-        epochs = mne.Epochs(raw, events, event_id={'EasyWord':1, 'HardWord':2}, tmin=tmin, tmax=tmax, baseline=baseline, metadata=df,  preload=True)
+        if stim == "unicity": 
+            epochs = mne.Epochs(raw, events, event_id={'EasyWord':1, 'HardWord':2}, tmin=tmin, tmax=tmax, baseline=baseline,   preload=True)
         return epochs
 
     def bridged_channels(self,instant,   lm_cutoff = 5, epoch_threshold=0.5):
@@ -148,6 +146,37 @@ class preprocess:
             results['Respons'].append(response_time / 1000.0)
 
         return pd.DataFrame(results)
+    
+    def segment_stimRt(self, raw, all_events, bad_trials):
+
+        all_trials = []
+        for idx, row in all_events.iterrows():
+
+            Tnum = row['Trial']
+            if Tnum in bad_trials:
+                continue
+            start = row['defOnset'] 
+            end = row['Respons'] 
+            duration = end - start
+
+            # Copy and crop raw data
+            data = raw.copy().crop(start, end)
+            
+            # Create annotation
+            onset_in_cropped = 0  # onset relative to start of cropped data
+            annotation = mne.Annotations(onset=[onset_in_cropped],
+                                        duration=[duration],
+                                        description=[f'S{self.id}_Trial_{Tnum}'])
+            
+            # Set annotation to this segment
+            data.set_annotations(annotation)
+
+            all_trials.append(data)
+        new_raw = mne.concatenate_raws(all_trials)
+
+        return new_raw
+
+
 
 
 class behaviorAnalysis:
@@ -165,3 +194,78 @@ class behaviorAnalysis:
 
         return subject_data
     
+
+import pickle
+def preICA(id):
+
+    with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
+        all_bridged_channels = pickle.load(f)
+    with open(os.path.join( data_path, 'bad_channels_detected.pkl'), "rb") as f:
+        all_bads = pickle.load(f)
+
+    bads_channel= all_bads[id]['channel_names']
+    bad_trials= all_bads[id]['trial_numbers']
+    bridged_channels= all_bridged_channels[5][id] 
+    sub = preprocess(id)
+    raw = sub.load_data()
+    raw.notch_filter([50,100], fir_design='firwin', skip_by_annotation='edge')
+    raw.filter(l_freq=1, h_freq= None)
+    raw.info['bads'] = bads_channel
+    events = mne.find_events(raw)
+    all_events = sub.get_all_events_times(id, events).dropna()
+    all_trials = []
+    for idx, row in all_events.iterrows():
+
+        Tnum = row['Trial']
+        if Tnum in bad_trials:
+            continue
+        start = row['defOnset'] 
+        end = row['Respons'] 
+        duration = end - start
+
+        # Copy and crop raw data
+        data = raw.copy().crop(start, end)
+        
+        # Create annotation
+        onset_in_cropped = 0  # onset relative to start of cropped data
+        annotation = mne.Annotations(onset=[onset_in_cropped],
+                                    duration=[duration],
+                                    description=[f'Trial {Tnum}'])
+        
+        # Set annotation to this segment
+        data.set_annotations(annotation)
+
+        all_trials.append(data)
+    new_raw = mne.concatenate_raws(all_trials)
+
+
+    # interpolate bridged channels
+    new_raw = mne.preprocessing.interpolate_bridged_electrodes(new_raw, bridged_channels['bridged_idx'], bad_limit=3) 
+
+    # # interpolate bad channels
+    # new_raw.interpolate_bads()
+
+    # # average reference
+    # new_raw.set_eeg_reference(ref_channels='average')
+
+    # # zscore the data
+    # data = new_raw.get_data()
+    # chan_means = np.mean(data, axis=1, keepdims=True)
+    # chan_stds  = np.std(data,  axis=1, keepdims=True)
+    # zscored_data = (data - chan_means) / chan_stds
+    # new_raw._data = zscored_data
+
+    return new_raw
+
+
+# bothBad = [ch for ch in bads_channel if ch in bridged_channels['bridged_ch_names']]
+# bothbad_indx = [new_raw.ch_names.index(ch) for ch in bads_channel]
+# new_badIndx = []
+# for ch1, ch2 in bridged_channels['bridged_idx']:
+#     if ch1 in bothbad_indx or ch2 in bothbad_indx:
+#         new_badIndx.append(ch1)
+#         new_badIndx.append(ch2)
+#         # remove this tuple from the list
+#         bridged_channels['bridged_idx'].remove((ch1, ch2))
+# new_badIndx = list(set(new_badIndx))
+# new_bads = [new_raw.ch_names[ch] for ch in new_badIndx]
