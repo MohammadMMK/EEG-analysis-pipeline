@@ -212,7 +212,7 @@ def preICA(id):
     raw.info['bads'] = bads_channel
     # 2. Filter the data
     raw.notch_filter([50,100], fir_design='firwin', skip_by_annotation='edge')
-    raw.filter(l_freq=1, h_freq= None)
+    raw.filter(l_freq=1, h_freq= 30)
     # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
     events = mne.find_events(raw)
     all_events = sub.get_all_events_times(id, events).dropna()
@@ -220,6 +220,27 @@ def preICA(id):
     # interpolate bridged channels
     new_raw = mne.preprocessing.interpolate_bridged_electrodes(new_raw, bridged_channels['bridged_idx'], bad_limit=3) 
     return new_raw
+
+from mne_icalabel import label_components
+
+def get_noisyICs(prep_data, ica, threshold=0.7, noise_type= None):
+    if noise_type == None:
+        ic_labels = label_components(prep_data, ica, method="iclabel")
+        noisy_components = []
+        for i, label in enumerate(ic_labels['labels']):
+            prob = ic_labels['y_pred_proba'][i]
+            if not label == 'brain' or label == 'other':
+                if prob > threshold:
+                    noisy_components.append(i)
+    elif noise_type == 'blinks':
+        ic_labels = label_components(prep_data, ica, method="iclabel")
+        noisy_components = []
+        for i, label in enumerate(ic_labels['labels']):
+            prob = ic_labels['y_pred_proba'][i]
+            if label == 'eye blink':
+                if prob > threshold:
+                    noisy_components.append(i)
+    return noisy_components
 
 
 # bothBad = [ch for ch in bads_channel if ch in bridged_channels['bridged_ch_names']]
