@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as R
 import pandas as pd
 from mne.preprocessing import compute_bridged_electrodes
 from unidecode import unidecode
+
 class preprocess:
     def __init__(self, id):
         self.id = str(id)
@@ -156,7 +157,7 @@ class preprocess:
             if Tnum in bad_trials:
                 continue
             start = row['defOnset'] 
-            end = row['Respons'] 
+            end = row['Respons'] - 0.1
             duration = end - start
 
             # Copy and crop raw data
@@ -195,36 +196,12 @@ class behaviorAnalysis:
         return subject_data
     
 
-import pickle
-def preICA(id):
 
-    with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
-        all_bridged_channels = pickle.load(f)
-    with open(os.path.join( data_path, 'bad_channels_detected.pkl'), "rb") as f:
-        all_bads = pickle.load(f)
-
-    bads_channel= all_bads[id]['channel_names']
-    bad_trials= all_bads[id]['trial_numbers']
-    bridged_channels= all_bridged_channels[5][id] 
-    sub = preprocess(id)
-    raw = sub.load_data()
-    # 1. remove noisy channels
-    raw.info['bads'] = bads_channel
-    # 2. Filter the data
-    raw.notch_filter([50,100], fir_design='firwin', skip_by_annotation='edge')
-    raw.filter(l_freq=1, h_freq= 30)
-    # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
-    events = mne.find_events(raw)
-    all_events = sub.get_all_events_times(id, events).dropna()
-    new_raw = sub.segment_stimRt(raw, all_events, bad_trials)
-    # interpolate bridged channels
-    new_raw = mne.preprocessing.interpolate_bridged_electrodes(new_raw, bridged_channels['bridged_idx'], bad_limit=3) 
-    return new_raw
 
 from mne_icalabel import label_components
 
-def get_noisyICs(prep_data, ica, threshold=0.7, noise_type= None):
-    if noise_type == None:
+def get_noisyICs(prep_data, ica, threshold=0.7, noise_type= 'all'):
+    if noise_type == 'all':
         ic_labels = label_components(prep_data, ica, method="iclabel")
         noisy_components = []
         for i, label in enumerate(ic_labels['labels']):
@@ -240,7 +217,7 @@ def get_noisyICs(prep_data, ica, threshold=0.7, noise_type= None):
             if label == 'eye blink':
                 if prob > threshold:
                     noisy_components.append(i)
-    return noisy_components
+    return noisy_components, ic_labels
 
 
 # bothBad = [ch for ch in bads_channel if ch in bridged_channels['bridged_ch_names']]
