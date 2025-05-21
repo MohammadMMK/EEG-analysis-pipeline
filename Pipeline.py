@@ -37,18 +37,19 @@ def pre_ica_denoise(id, lowPassFilter = None):
     pre_ica_data = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=3) 
     return pre_ica_data
 
-def ICA_denoise(id, pre_ica_data, n_components=None, decim=2, overwrite = False):
-    ICA_path = os.path.join(data_path, f'S{id}_ica_infomax.fif')
+def ICA_denoise(id, lowPassFilter = None, n_components=None, decim=2, ica_name = 'ica_infomax', overwrite = False):
+    ICA_path = os.path.join(data_path, f'S{id}_{ica_name}.fif')
     if os.path.exists(ICA_path) and overwrite == False:
         print(f'ICA already exists for subject {id}, skipping ICA computation.')
         return 
+    pre_ica_data = pre_ica_denoise(id, lowPassFilter = lowPassFilter)
     ica = mne.preprocessing.ICA(n_components = n_components, method= 'infomax', fit_params=dict(extended=True))
     ica.fit(pre_ica_data, decim=decim)
     ica.save(ICA_path, overwrite=True)
     return
 
 
-def pre_gICA(ids, lowPassFilter = 30, noise_type = 'blinks', file_name = 'groupData'):
+def pre_gICA(ids,ica_name = 'ica_infomax', lowPassFilter_pregICA = 30, noise_type = 'blinks', file_name = 'groupData', lowPassFilter_preICA =30):
 
     with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
@@ -69,20 +70,24 @@ def pre_gICA(ids, lowPassFilter = 30, noise_type = 'blinks', file_name = 'groupD
 
         # 2. Filter the data
         raw.notch_filter([50,100], fir_design='firwin', skip_by_annotation='edge')
-        raw.filter(l_freq=1, h_freq= lowPassFilter)
+        raw.filter(l_freq=1, h_freq= lowPassFilter_pregICA)
 
         # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
         events = mne.find_events(raw)
         all_events = sub.get_all_events_times(id, events).dropna()
         new_raw = sub.segment_stimRt(raw, all_events, bad_trials)
 
-        # 4. remove blink components 
-        ica_path = os.path.join(data_path, f'S{id}_ica_infomax.fif')
-        ica = mne.preprocessing.read_ica(ica_path)
-        path_labels = os.path.join(data_path, f'S{id}_ica_infomax_labels.pkl')
+        # 4. remove noisy components 
+        ica_path = os.path.join(data_path, f'S{id}_{ica_name}.fif')
+        if os.path.exists(ica_path):
+            ica = mne.preprocessing.read_ica(ica_path)
+        else:
+            ica = ICA_denoise(id, lowPassFilter= lowPassFilter_preICA, n_components=0.98, decim=2,ica_name = ica_name, overwrite=True)
+            
+        path_labels = os.path.join(data_path, f'S{id}_{ica_name}_labels.pkl')
         if os.path.exists(path_labels):
             with open(path_labels, "rb") as f:
-                ica_labels = pickle.load(f)
+                ic_labels = pickle.load(f)
         else:
             from mne_icalabel import label_components
             ic_labels = label_components(new_raw, ica, method="iclabel")
