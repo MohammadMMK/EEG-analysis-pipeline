@@ -218,6 +218,46 @@ def get_noisyICs(ic_labels, threshold=0.7, noise_type= 'all'):
                     noisy_components.append(i)
     return noisy_components
 
+import pickle
+def compute_bridged(ids, overwrite = False):
+
+    lm_cutoff = 5 
+    bridged_channels_dict = {}
+    path_bridge = os.path.join(data_path,'bridged_channels_analysis.pkl')
+    if os.path.exists(path_bridge) and not overwrite:
+        print("Bridged channels analysis already exists. Use overwrite=True to recompute.")
+
+    for i, id in enumerate(ids):
+
+        # Preprocess the data for each subject
+        print(f"Processing subject {id} with LM cutoff {lm_cutoff}...")
+        subject = preprocess(id)
+        epochs = subject.epoching(tmin=-0.2, tmax=0.8, baseline=(None, 0))
+        bridged_idx, ed_matrix, bridged_ch_names = subject.bridged_channels(
+            epochs, 
+            lm_cutoff=lm_cutoff, 
+            epoch_threshold=0.5
+        )
+        
+        # Save bridged channels information in the dictionary
+        bridged_channels_dict[id] = {
+            "bridged_idx": bridged_idx,
+            "bridged_ch_names": bridged_ch_names
+        }
+        print(f"Found {len(bridged_ch_names)} bridged channels for subject {id}")
+
+    # Save the bridged channels information to a file
+    with open(path_bridge, 'wb') as f:
+        pickle.dump(bridged_channels_dict, f)
+    print(f"Bridged channels analysis saved to {path_bridge}")
+    return
+
+
+
+
+
+
+
 
 # bothBad = [ch for ch in bads_channel if ch in bridged_channels['bridged_ch_names']]
 # bothbad_indx = [new_raw.ch_names.index(ch) for ch in bads_channel]
