@@ -205,9 +205,10 @@ def get_noisyICs(ic_labels, threshold=0.7, noise_type= 'all'):
         noisy_components = []
         for i, label in enumerate(ic_labels['labels']):
             prob = ic_labels['y_pred_proba'][i]
-            if not label == 'brain' or label == 'other':
-                if prob > threshold:
-                    noisy_components.append(i)
+            if not label == 'brain':
+                if not label == 'other':
+                    if prob > threshold:
+                        noisy_components.append(i)
     elif noise_type == 'blinks':
         noisy_components = []
         for i, label in enumerate(ic_labels['labels']):

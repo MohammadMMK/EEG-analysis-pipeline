@@ -49,70 +49,91 @@ def ICA_denoise(id, lowPassFilter = None, n_components=None, decim=2, ica_name =
     return
 
 
-def pre_gICA(ids,ica_name = 'ica_infomax', lowPassFilter_pregICA = 30, noise_type = 'blinks', file_name = 'groupData', lowPassFilter_preICA =30):
+import os
+import pickle
+import gc
+import mne
+import numpy as np
 
-    with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
+def pre_gICA(ids,
+            ica_name='ica_infomax',
+            lowPassFilter_pregICA=30,
+            noise_type='blinks',
+            file_name='groupData'):
+
+    # Load once
+    with open(os.path.join(data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
-    with open(os.path.join( data_path, 'bad_channels_detected.pkl'), "rb") as f:
+    with open(os.path.join(data_path, 'bad_channels_detected.pkl'), "rb") as f:
         all_bads = pickle.load(f)
-    pre_concatenated_data = []
-    for id in ids:
 
-        bads_channel= all_bads[id]['channel_names']
-        bad_trials= all_bads[id]['trial_numbers']
-        blink_components = all_bads[id]['ica_blinks']
-        bridged_channels= all_bridged_channels[5][id] 
-        sub = preprocess(id)
+    pre_concatenated_data = []
+
+    for subject_id in ids:
+        # Per‐subject params
+        bads_channel = all_bads[subject_id]['channel_names']
+        bad_trials   = all_bads[subject_id]['trial_numbers']
+        bridged      = all_bridged_channels[5][subject_id]
+
+        # 1. load & preprocess
+        sub = preprocess(subject_id)
         raw = sub.load_data()
-        # 1. remove noisy channels
         raw.info['bads'] = bads_channel
 
+        # 2. filter
+        raw.notch_filter([50, 100], fir_design='firwin', skip_by_annotation='edge')
+        raw.filter(l_freq=1, h_freq=lowPassFilter_pregICA)
 
-        # 2. Filter the data
-        raw.notch_filter([50,100], fir_design='firwin', skip_by_annotation='edge')
-        raw.filter(l_freq=1, h_freq= lowPassFilter_pregICA)
+        # 3. epoch & drop bad trials
+        events    = mne.find_events(raw)
+        all_events = sub.get_all_events_times(subject_id, events).dropna()
+        new_raw    = sub.segment_stimRt(raw, all_events, bad_trials)
 
-        # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
-        events = mne.find_events(raw)
-        all_events = sub.get_all_events_times(id, events).dropna()
-        new_raw = sub.segment_stimRt(raw, all_events, bad_trials)
+        # 4. ICA cleaning
+        ica_path = os.path.join(data_path, f'S{subject_id}_{ica_name}.fif')
+        if not os.path.exists(ica_path):
+            print(f'ICA missing for subject {subject_id}; skipping.')
+            return
 
-        # 4. remove noisy components 
-        ica_path = os.path.join(data_path, f'S{id}_{ica_name}.fif')
-        if os.path.exists(ica_path):
-            ica = mne.preprocessing.read_ica(ica_path)
-        else:
-            ica = ICA_denoise(id, lowPassFilter= lowPassFilter_preICA, n_components=0.98, decim=2,ica_name = ica_name, overwrite=True)
-            
-        path_labels = os.path.join(data_path, f'S{id}_{ica_name}_labels.pkl')
-        if os.path.exists(path_labels):
-            with open(path_labels, "rb") as f:
+        ica = mne.preprocessing.read_ica(ica_path)
+        labels_path = os.path.join(data_path, f'S{subject_id}_{ica_name}_labels.pkl')
+        if os.path.exists(labels_path):
+            with open(labels_path, "rb") as f:
                 ic_labels = pickle.load(f)
         else:
             from mne_icalabel import label_components
             ic_labels = label_components(new_raw, ica, method="iclabel")
-            # save the labels
-            with open(path_labels, "wb") as f:
+            with open(labels_path, "wb") as f:
                 pickle.dump(ic_labels, f)
-        noisy_components = get_noisyICs(ic_labels, threshold= 0.7, noise_type=noise_type)
-        ica.exclude = noisy_components
+
+        noisy = get_noisyICs(ic_labels, threshold=0.7, noise_type=noise_type)
+        ica.exclude = noisy
         ica.apply(new_raw)
 
-        # 5. interpolate bridged channels
-        new_raw = mne.preprocessing.interpolate_bridged_electrodes(new_raw, bridged_channels['bridged_idx'], bad_limit=3) 
-        # 6. interpolate bad channels
+        # 5–7. interpolate & re‐ref
+        new_raw = mne.preprocessing.interpolate_bridged_electrodes(
+            new_raw, bridged['bridged_idx'], bad_limit=3
+        )
         new_raw.interpolate_bads()
-        # 7. rereference the data
         new_raw.set_eeg_reference(ref_channels='average')
-        # 8. zscore the data
+
+        # 8. z‐score
         data = new_raw.get_data()
-        chan_means = np.mean(data, axis=1, keepdims=True)
-        chan_stds  = np.std(data,  axis=1, keepdims=True)
-        zscored_data = (data - chan_means) / chan_stds
-        new_raw._data = zscored_data
+        means = data.mean(axis=1, keepdims=True)
+        stds  = data.std(axis=1, keepdims=True)
+        new_raw._data = (data - means) / stds
+
+        # store and then clear
         pre_concatenated_data.append(new_raw)
-    # concatenate the data
-    concat_data = mne.concatenate_raws(pre_concatenated_data)
-    # save the data
-    concat_data.save(os.path.join(data_path, f'{file_name}.fif'), overwrite=True)
-    return concat_data
+
+        # --- clear out all the big locals ---
+        del (sub, raw, events, all_events, ica, ic_labels,
+             noisy, data, means, stds, bridged,
+             bads_channel, bad_trials)
+        gc.collect()
+
+    # concatenate and save
+    concat = mne.concatenate_raws(pre_concatenated_data)
+    concat.save(os.path.join(data_path, f'{file_name}.fif'), overwrite=True)
+
+    return
