@@ -86,7 +86,7 @@ class preprocess:
         return raw
 
 
-    def get_all_events_times(self, subject_id, events, 
+    def get_all_events_times(self, events, 
                             path_beh_task=None, path_beh_subject=None):
 
 
@@ -98,7 +98,7 @@ class preprocess:
         # Load Excel sheets
         behavior_tasks = pd.read_excel(path_beh_task, sheet_name='ItemsBalancés')
         behavior_subjets = pd.read_excel(path_beh_subject, sheet_name='Data')
-
+        subject_id = self.id
         # Filter data for current subject
         subject_key = f'S{subject_id}'
         subject_data = behavior_subjets[behavior_subjets['Sujet'] == subject_key]
