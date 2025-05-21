@@ -48,7 +48,7 @@ def ICA_denoise(id, pre_ica_data, n_components=None, decim=2, overwrite = False)
     return
 
 
-def pre_gICA(ids, lowPassFilter = 30):
+def pre_gICA(ids, lowPassFilter = 30, noise_type = 'blinks', file_name = 'groupData'):
 
     with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
@@ -79,8 +79,17 @@ def pre_gICA(ids, lowPassFilter = 30):
         # 4. remove blink components 
         ica_path = os.path.join(data_path, f'S{id}_ica_infomax.fif')
         ica = mne.preprocessing.read_ica(ica_path)
-        noisy_components, ica_labels = get_noisyICs( new_raw,ica, threshold=0.7, noise_type = 'blinks')
         path_labels = os.path.join(data_path, f'S{id}_ica_infomax_labels.pkl')
+        if os.path.exists(path_labels):
+            with open(path_labels, "rb") as f:
+                ica_labels = pickle.load(f)
+        else:
+            from mne_icalabel import label_components
+            ic_labels = label_components(new_raw, ica, method="iclabel")
+            # save the labels
+            with open(path_labels, "wb") as f:
+                pickle.dump(ic_labels, f)
+        noisy_components = get_noisyICs(ic_labels, threshold= 0.7, noise_type=noise_type)
         ica.exclude = noisy_components
         ica.apply(new_raw)
 
@@ -100,4 +109,5 @@ def pre_gICA(ids, lowPassFilter = 30):
     # concatenate the data
     concat_data = mne.concatenate_raws(pre_concatenated_data)
     # save the data
-    concat_data.save(os.path.join(data_path, 'concatenated_data.fif'), overwrite=True)
+    concat_data.save(os.path.join(data_path, f'{file_name}.fif'), overwrite=True)
+    return concat_data

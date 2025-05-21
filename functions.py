@@ -200,9 +200,8 @@ class behaviorAnalysis:
 
 from mne_icalabel import label_components
 
-def get_noisyICs(prep_data, ica, threshold=0.7, noise_type= 'all'):
+def get_noisyICs(ic_labels, threshold=0.7, noise_type= 'all'):
     if noise_type == 'all':
-        ic_labels = label_components(prep_data, ica, method="iclabel")
         noisy_components = []
         for i, label in enumerate(ic_labels['labels']):
             prob = ic_labels['y_pred_proba'][i]
@@ -210,14 +209,13 @@ def get_noisyICs(prep_data, ica, threshold=0.7, noise_type= 'all'):
                 if prob > threshold:
                     noisy_components.append(i)
     elif noise_type == 'blinks':
-        ic_labels = label_components(prep_data, ica, method="iclabel")
         noisy_components = []
         for i, label in enumerate(ic_labels['labels']):
             prob = ic_labels['y_pred_proba'][i]
             if label == 'eye blink':
                 if prob > threshold:
                     noisy_components.append(i)
-    return noisy_components, ic_labels
+    return noisy_components
 
 
 # bothBad = [ch for ch in bads_channel if ch in bridged_channels['bridged_ch_names']]
