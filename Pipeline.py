@@ -12,12 +12,12 @@ def pre_ica_denoise(id, lowPassFilter = None):
 
     with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
-    with open(os.path.join( data_path, 'bad_channels_detected.pkl'), "rb") as f:
+    with open(os.path.join( data_path, 'BadTrialsChannel_manualDetected.pkl'), "rb") as f:
         all_bads = pickle.load(f)
 
     bads_channel= all_bads[id]['channel_names']
     bad_trials= all_bads[id]['trial_numbers']
-    bridged_channels= all_bridged_channels[5][id] 
+    bridged_channels= all_bridged_channels[id] 
     sub = preprocess(id)
     raw = sub.load_data()
 
@@ -34,7 +34,7 @@ def pre_ica_denoise(id, lowPassFilter = None):
     pre_ica_data = sub.segment_stimRt(raw, all_events, bad_trials)
 
     # interpolate bridged channels
-    pre_ica_data = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=3) 
+    pre_ica_data = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=4) 
     return pre_ica_data
 
 def ICA_denoise(id, lowPassFilter = None, n_components=None, decim=2, ica_name = 'ica_infomax', overwrite = False):
@@ -46,6 +46,8 @@ def ICA_denoise(id, lowPassFilter = None, n_components=None, decim=2, ica_name =
     ica = mne.preprocessing.ICA(n_components = n_components, method= 'infomax', fit_params=dict(extended=True))
     ica.fit(pre_ica_data, decim=decim)
     ica.save(ICA_path, overwrite=True)
+    del ica, pre_ica_data
+    gc.collect()
     return
 
 
@@ -64,7 +66,7 @@ def pre_gICA(ids,
     # Load once
     with open(os.path.join(data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
-    with open(os.path.join(data_path, 'bad_channels_detected.pkl'), "rb") as f:
+    with open(os.path.join(data_path, 'BadTrialsChannel_manualDetected.pkl'), "rb") as f:
         all_bads = pickle.load(f)
 
     pre_concatenated_data = []
@@ -73,7 +75,7 @@ def pre_gICA(ids,
         # Per‐subject params
         bads_channel = all_bads[subject_id]['channel_names']
         bad_trials   = all_bads[subject_id]['trial_numbers']
-        bridged      = all_bridged_channels[5][subject_id]
+        bridged      = all_bridged_channels[subject_id]
 
         # 1. load & preprocess
         sub = preprocess(subject_id)
@@ -112,7 +114,7 @@ def pre_gICA(ids,
 
         # 5–7. interpolate & re‐ref
         new_raw = mne.preprocessing.interpolate_bridged_electrodes(
-            new_raw, bridged['bridged_idx'], bad_limit=3
+            new_raw, bridged['bridged_idx'], bad_limit=4
         )
         new_raw.interpolate_bads()
         new_raw.set_eeg_reference(ref_channels='average')
