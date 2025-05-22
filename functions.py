@@ -11,10 +11,8 @@ class preprocess:
     def __init__(self, id):
         self.id = str(id)
         self.eeg_path = os.path.join(data_path, [f for f in os.listdir(data_path) if self.id in f and f.endswith('.bdf')][0])
-        self.txt_path = os.path.join(data_path, [f for f in os.listdir(data_path) if self.id in f and f.endswith('.txt')][0])
         self.raw = self.load_data()
-        self.df = pd.read_csv(self.txt_path, delimiter='\t', header=None)
-        self.df.columns = ['outcome', 'RT', 'unicityDistance', 'earlyVSlate']
+
 
     def load_data(self):
         """Load EEG data from a file."""
