@@ -82,10 +82,9 @@ class preprocess:
         raw = raw.set_annotations(mne.Annotations(onset=onsets, duration=durations, description=descriptions))
 
         return raw
-
-
-    def get_all_events_times(self, events, 
-                            path_beh_task=None, path_beh_subject=None):
+    
+    
+    def get_all_events_times(self, events, path_beh_task=None, path_beh_subject=None):
 
 
         # load data from exel file 
@@ -122,6 +121,7 @@ class preprocess:
 
             # Lookup in duration data
             stim_info = behavior_tasks[behavior_tasks['ortho'] == word]
+            
             total_duration_ms = stim_info['DureeTot_second'].values[0] * 1000
             pu_ms = stim_info['PU_second'].values[0] * 1000
             def2_onset_ms = stim_info['Def2_Audio_Onset'].values[0] * 1000
@@ -136,7 +136,7 @@ class preprocess:
             onset_sec_word = onset_def + def2_onset_ms
             onset_lw = onset_def + lw_onset_ms
             response_time = event_time_ms + rt_corrPU_ms
-
+            # return onset_def, onset_sec_word, onset_lw, response_time, event_time_ms, 
             # Append to results
             results['Trial'].append(trial)
             results['defOnset'].append(onset_def / 1000.0)
@@ -173,7 +173,31 @@ class preprocess:
             all_trials.append(data)
         new_raw = mne.concatenate_raws(all_trials)
 
-        return new_raw
+        return new_raw, all_trials
+    
+   
+
+def interpolate_HANoise(all_trials, detected_noise):
+    all_trials_interpolated = []
+    if len(all_trials) != detected_noise.shape[1]:
+        raise ValueError("Length of all_trials and detected_noise must match.")
+    detected_noiseT = detected_noise.copy().transpose()
+    for i in range(len(all_trials)):
+        raw_epoch = all_trials[i]
+        
+        bad_idx = np.where(detected_noiseT[i])[0]
+        n_total_bads = len(bad_idx) + len(raw_epoch.info['bads'])
+        if n_total_bads > 30:
+            continue
+        elif n_total_bads > 0:
+            raw_epoch.info['bads'] += [raw_epoch.ch_names[idx] for idx in bad_idx]
+            raw_epoch.interpolate_bads()
+            raw_epoch.info['bads'] = []  # Clear bads after interpolation
+            all_trials_interpolated.append(raw_epoch)
+        elif n_total_bads == 0:
+            all_trials_interpolated.append(raw_epoch)
+    return all_trials_interpolated
+
 
 
 
