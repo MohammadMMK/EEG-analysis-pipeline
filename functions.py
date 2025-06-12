@@ -273,22 +273,3 @@ def compute_bridged(ids, overwrite = False):
         pickle.dump(bridged_channels_dict, f)
     print(f"Bridged channels analysis saved to {path_bridge}")
     return
-
-
-
-
-
-
-
-
-# bothBad = [ch for ch in bads_channel if ch in bridged_channels['bridged_ch_names']]
-# bothbad_indx = [new_raw.ch_names.index(ch) for ch in bads_channel]
-# new_badIndx = []
-# for ch1, ch2 in bridged_channels['bridged_idx']:
-#     if ch1 in bothbad_indx or ch2 in bothbad_indx:
-#         new_badIndx.append(ch1)
-#         new_badIndx.append(ch2)
-#         # remove this tuple from the list
-#         bridged_channels['bridged_idx'].remove((ch1, ch2))
-# new_badIndx = list(set(new_badIndx))
-# new_bads = [new_raw.ch_names[ch] for ch in new_badIndx]

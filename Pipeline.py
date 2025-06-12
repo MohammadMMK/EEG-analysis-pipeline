@@ -68,18 +68,18 @@ def pre_HA_denoise(id, lowPassFilter = None):
     ica.exclude = noisy_components
     ica.apply(pre_ica_data)
     # interpolate bridged channels
-    pre_ica_data = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=4) 
+    pre_HA_denoise = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=4) 
     # 5. interpolate bad channels
-    pre_ica_data.interpolate_bads()
+    pre_HA_denoise.interpolate_bads()
     # 6. re-reference to average
-    pre_ica_data.set_eeg_reference(ref_channels='average')
+    pre_HA_denoise.set_eeg_reference(ref_channels='average')
     # 7. z-score
-    data = pre_ica_data.get_data()
+    data = pre_HA_denoise.get_data()
     means = data.mean(axis=1, keepdims=True)
     stds  = data.std(axis=1, keepdims=True)
-    pre_ica_data._data = (data - means) / stds
+    pre_HA_denoise._data = (data - means) / stds
 
-    return pre_ica_data
+    return pre_HA_denoise
 
  
 
@@ -216,3 +216,5 @@ def concat_data(ids,
     concat.save(os.path.join(data_path, f'{file_name}.fif'), overwrite=True)
 
     return concat
+
+
