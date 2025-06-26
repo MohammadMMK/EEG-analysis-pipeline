@@ -30,9 +30,8 @@ def pre_ica_denoise(id, lowPassFilter = None):
 
     # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
     events = mne.find_events(raw)
-    all_events = sub.get_all_events_times( events).dropna()
-    pre_ica_data = sub.segment_stimRt(raw, all_events, bad_trials)
-
+    all_events = sub.get_all_events_times(events).dropna()
+    pre_ica_data, _ = sub.segment_stimRt(raw, all_events, bad_trials)
     # interpolate bridged channels
     pre_ica_data = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=4) 
     return pre_ica_data
