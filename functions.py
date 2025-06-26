@@ -32,10 +32,10 @@ class preprocess:
         raw.set_montage(rotated_montage)
         return raw
     
-    def epoching(self,raw, stim = "unicity", tmin=-0.2, tmax=0.8, baseline=(None, 0) ):
+    def epoching(self, raw, stim = "unicity", tmin=-0.2, tmax=0.8, baseline=(None, 0) ):
         events = mne.find_events(raw)
         if stim == "unicity": 
-            epochs = mne.Epochs(raw, events, event_id={'EasyWord':1, 'HardWord':2}, tmin=tmin, tmax=tmax, baseline=baseline,   preload=True)
+            epochs = mne.Epochs(raw, events, event_id={'High':1, 'Low':2}, tmin=tmin, tmax=tmax, baseline=baseline,   preload=True)
         return epochs
 
     def bridged_channels(self,instant,   lm_cutoff = 5, epoch_threshold=0.5):
@@ -112,7 +112,9 @@ class preprocess:
             'defOnset': [],
             'SecWordOnset': [],
             'LWOnset': [],
-            'Respons': []
+            'Respons': [],
+            'freqs': [],
+            'word': []
         }
 
         for trial in range(1, 109):
@@ -126,6 +128,9 @@ class preprocess:
             pu_ms = stim_info['PU_second'].values[0] * 1000
             def2_onset_ms = stim_info['Def2_Audio_Onset'].values[0] * 1000
             lw_onset_ms = stim_info['LW_Onset'].values[0] * 1000
+            # Get frequency
+            freq = stim_info['Freq_Manulex'].values[0]
+    
 
             # Get response time
             rt_corrPU_ms = subject_data[subject_data['Ordre'] == trial]['RT_Correct_CorrPU'].values[0]
@@ -143,10 +148,12 @@ class preprocess:
             results['SecWordOnset'].append(onset_sec_word / 1000.0)
             results['LWOnset'].append(onset_lw / 1000.0)
             results['Respons'].append(response_time / 1000.0)
+            results['freqs'].append(freq)
+            results['word'].append(word)
 
         return pd.DataFrame(results)
     
-    def segment_stimRt(self, raw, all_events, bad_trials):
+    def segment_stimRt(self, raw, all_events, bad_trials, prestim_duration = 0):
 
         all_trials = []
         for idx, row in all_events.iterrows():
@@ -154,7 +161,7 @@ class preprocess:
             Tnum = row['Trial']
             if Tnum in bad_trials:
                 continue
-            start = row['defOnset'] 
+            start = row['defOnset'] - prestim_duration
             end = row['Respons'] - 0.1
             duration = end - start
 
