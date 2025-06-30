@@ -8,7 +8,7 @@ import gc
 from config import data_path
 from functions import preprocess,get_noisyICs, interpolate_HANoise
 
-def pre_ica_denoise(id, lowPassFilter = None):
+def pre_ica_denoise(id, lowPassFilter = None, prestim_duration = 0):
 
     with open(os.path.join( data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
@@ -31,7 +31,8 @@ def pre_ica_denoise(id, lowPassFilter = None):
     # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
     events = mne.find_events(raw)
     all_events = sub.get_all_events_times(events).dropna()
-    pre_ica_data, _ = sub.segment_stimRt(raw, all_events, bad_trials)
+    alltrials = sub.segment_stimRt(raw, all_events, bad_trials, prestim_duration)
+    pre_ica_data = mne.concatenate_raws(alltrials)
     # interpolate bridged channels
     pre_ica_data = mne.preprocessing.interpolate_bridged_electrodes(pre_ica_data, bridged_channels['bridged_idx'], bad_limit=4) 
     return pre_ica_data
@@ -42,7 +43,7 @@ def pre_HA_denoise(id, lowPassFilter = None):
         all_bridged_channels = pickle.load(f)
     with open(os.path.join( data_path, 'BadTrialsChannel_manualDetected.pkl'), "rb") as f:
         all_bads = pickle.load(f)
-    path_ic = os.path.join(data_path, f'S{id}_ica_infomax_LpF.fif')
+    path_ic = os.path.join(data_path, f'S{id}_ica_infomax.fif')
     bads_channel= all_bads[id]['channel_names']
     bad_trials= all_bads[id]['trial_numbers']
     noisy_components = all_bads[id]['noisy_components']
@@ -60,8 +61,8 @@ def pre_HA_denoise(id, lowPassFilter = None):
     # 3. segment the data from stim to response (remove noisy trials and trials with wrong answers)
     events = mne.find_events(raw)
     all_events = sub.get_all_events_times( events).dropna()
-    pre_ica_data, all_trials = sub.segment_stimRt(raw, all_events, bad_trials)
-    
+    all_trials = sub.segment_stimRt(raw, all_events, bad_trials)
+    pre_ica_data= mne.concatenate_raws(all_trials)
     # 4. ICA cleaning
     ica = mne.preprocessing.read_ica(path_ic)
     ica.exclude = noisy_components
@@ -168,7 +169,7 @@ def concat_data(ids,
         # 3. epoch & drop bad trials
         events    = mne.find_events(raw)
         all_events = sub.get_all_events_times( events).dropna()
-        n, all_trials    = sub.segment_stimRt(raw, all_events, bad_trials)
+        all_trials    = sub.segment_stimRt(raw, all_events, bad_trials)
 
         # 4. ICA cleaning
         ica_path = os.path.join(data_path, f'S{subject_id}_{ica_name}.fif')

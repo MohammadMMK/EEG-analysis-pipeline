@@ -178,9 +178,10 @@ class preprocess:
             data.set_annotations(annotation)
 
             all_trials.append(data)
-        new_raw = mne.concatenate_raws(all_trials)
+        # all_trials_returen = all_trials
+        # new_raw = mne.concatenate_raws(all_trials)
 
-        return new_raw, all_trials
+        return all_trials
     
    
 
