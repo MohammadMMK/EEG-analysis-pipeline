@@ -281,3 +281,78 @@ def compute_bridged(ids, overwrite = False):
         pickle.dump(bridged_channels_dict, f)
     print(f"Bridged channels analysis saved to {path_bridge}")
     return
+
+
+def plot_HA_autoreject(all_bads, sub, threshold = 0.2):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    detection = all_bads['detection']  # shape (n_channels, n_trials) with True/False
+    n_bad_ch = len(all_bads['channel_names'])
+    # === PARAMETERS ===
+    threshold_channel_pct = 0.4
+    threshold_trials = threshold * 128
+
+    # === COMPUTE ===
+    noisy_per_trial = detection.sum(axis=0) + n_bad_ch # trials
+    noisy_per_channel = detection.sum(axis=1)  # channels
+
+    n_trials = detection.shape[1]
+    n_channels = detection.shape[0]
+
+    threshold_channels = int(n_trials * threshold_channel_pct)
+
+    bad_trials = np.where(noisy_per_trial > threshold_trials)[0]
+    bad_channels = np.where(noisy_per_channel > threshold_channels)[0]
+
+    print(f"Trials with >{threshold_trials} noisy channels: {bad_trials.tolist()}")
+    print(f"Channels noisy in >{threshold_channel_pct*100:.0f}% of trials: {bad_channels.tolist()}")
+
+    # === PLOT ===
+    plt.figure(figsize=(16, 8))
+    ax = sns.heatmap(detection, cmap="Blues", cbar=True,
+                    xticklabels=1, yticklabels=1)
+
+    # Show all x and y ticks
+    ax.set_xticks(np.arange(n_trials) + 0.5)
+    ax.set_xticklabels(np.arange(n_trials))
+    ax.set_yticks(np.arange(n_channels) + 0.5)
+    ax.set_yticklabels(np.arange(n_channels))
+    ax.invert_yaxis()
+
+    # Highlight whole columns for bad trials
+    for t in bad_trials:
+        ax.add_patch(
+            plt.Rectangle(
+                (t, 0),            # (x, y) lower left corner
+                1, n_channels,     # width, height
+                fill=True,
+                color='red',
+                alpha=0.3,
+                lw=0
+            )
+        )
+
+    # Highlight whole rows for bad channels
+    for c in bad_channels:
+        ax.add_patch(
+            plt.Rectangle(
+                (0, c),            # (x, y) lower left corner
+                n_trials, 1,       # width, height
+                fill=True,
+                color='red',
+                alpha=0.3,
+                lw=0
+            )
+        )
+
+    plt.xlabel('Trial')
+    plt.ylabel('Channel')
+    plt.title(f' Subject {sub} Noisy Channel Detection Matrix (True=Noisy)\nRed columns = bad trials, Red rows = bad channels')
+    plt.tight_layout()
+    plt.savefig(os.path.join(os.path.dirname(__file__),'plots','HA_noise', f'HA_autoreject_{sub}.png'), dpi=300)
+
+    plt.show()
+
+
