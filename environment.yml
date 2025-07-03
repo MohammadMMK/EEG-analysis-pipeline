@@ -1,29 +1,78 @@
-name: eeg-preproc
+# This is a conda environment file for the BCL (Brain Computer Lab) environment.
+
+name: BCLenv
 channels:
   - conda-forge
   - defaults
+
 dependencies:
+  # Core Python
   - python=3.10
   - pip
-  - numpy
-  - scipy
-  - matplotlib
-  - pandas
-  - jupyter
+
+  # Jupyter
   - ipykernel
-  - ipython
+  - jupyter
+  - ipywidgets
+
+  # Data & computation
+  - numpy
+  - pandas
+  - scipy
   - scikit-learn
-  - h5py
-  - seaborn
-  - tqdm
   - statsmodels
+  - seaborn
+  - matplotlib
+  - networkx
   - xarray
-  - pyyaml
+  - h5py
+  - netcdf4
+
+  # EEG/MEG processing
+  - mne
+
+  # Other
+  - psutil
+
+  # Install these via pip
   - pip:
-    - mne==1.9.0
-    - autoreject==0.4.3
-    - pyprep==0.4.3
-    - eeglabio==0.0.3
-    - pymatreader==1.0.0
-    - asrpy==0.0.3
-    - nibabel
+      - addict
+      - asrpy
+      - autoreject
+      - colour
+      - diskcache
+      - eeglabio
+      - h5io
+      - hmp
+      - isosurfaces
+      - manimgl
+      - manimpango
+      - mapbox-earcut
+      - meegkit
+      - mne-icalabel
+      - moderngl
+      - moderngl-window
+      - openpyxl
+      - patsy
+      - pydub
+      - pyglet
+      - pyglm
+      - pymatreader
+      - pyopengl
+      - pyparsing
+      - pyperclip
+      - pyprep
+      - pyqt5
+      - pyriemann
+      - requests
+      - rich
+      - screeninfo
+      - shiboken2
+      - skia-pathops
+      - svgelements
+      - sympy
+      - torch
+      - tqdm
+      - unidecode
+      - validators
+      - xmltodict

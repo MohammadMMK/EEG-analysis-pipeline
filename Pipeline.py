@@ -144,7 +144,7 @@ def concat_data(ids,
     # Load once
     with open(os.path.join(data_path, 'bridged_channels_analysis.pkl'), "rb") as f:
         all_bridged_channels = pickle.load(f)
-    with open(os.path.join(data_path, 'artifacts.pkl'), "rb") as f:
+    with open(os.path.join(data_path, 'new.pkl'), "rb") as f:
         all_bads = pickle.load(f)
 
     pre_concatenated_data = []
@@ -166,7 +166,7 @@ def concat_data(ids,
         raw.notch_filter([50, 100], fir_design='firwin', skip_by_annotation='edge')
         raw.filter(l_freq=1, h_freq=lowPassFilter_pregICA)
 
-        # 3. epoch & drop bad trials
+        # 3. epoch & drop noisy trials and wrong trials, 
         events    = mne.find_events(raw)
         all_events = sub.get_all_events_times( events).dropna()
         all_trials    = sub.segment_stimRt(raw, all_events, bad_trials)
